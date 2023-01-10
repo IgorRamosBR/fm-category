@@ -1,0 +1,71 @@
+service: fm-category
+
+app: fm-category
+org: igorpestana
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  region: us-east-1
+  runtime: go1.x
+  environment:
+    ENVIRONMENT: ${opt:stage, self:provider.stage}
+    DYNAMODB_CATEGORY_TABLE: ${self:service}-table-${opt:stage, self:provider.stage}
+    DYNAMODB_CATEGORY_REGION: us-east-1
+    DYNAMODB_CATEGORY_ENDPOINT: ${self:service}-${opt:stage, self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_CATEGORY_TABLE}"
+
+functions:
+  create:
+    handler: bin/create
+    package:
+      include:
+        - ./bin/create
+    events:
+      - http:
+          path: categories
+          method: post
+          cors: true
+
+  list:
+    handler: bin/list
+    package:
+      include:
+        - ./bin/list
+    events:
+      - http:
+          path: categories
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    FmCategoryTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: Name
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: Name
+            KeyType: HASH
+        BillingMode: PROVISIONED
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.DYNAMODB_CATEGORY_TABLE}
