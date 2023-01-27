@@ -34,7 +34,7 @@ func toInt32(t string) (int32, error) {
 func toJSON(value interface{}) (string, error) {
 	result, err := json.Marshal(value)
 	if err != nil {
-		log.Errorf("Failed to marshal response body, error: ", err.Error())
+		log.Errorf("Failed to marshal response body, error: %v", err.Error())
 	}
 	return string(result), nil
 }

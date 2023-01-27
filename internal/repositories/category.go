@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/IgorRamos/fm-category/internal/models"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,6 +16,7 @@ type CategoryRepository interface {
 	CreateCategory(models.Category) error
 	GetCategoryByName(string) (models.Category, error)
 	GetAllCategories() ([]models.Category, error)
+	UpdateCategoryListOrder([]models.Category) error
 }
 
 type categoryRepository struct {
@@ -32,7 +34,7 @@ func NewCategoryRepository(db *dynamodb.Client, tableName string) CategoryReposi
 func (r categoryRepository) CreateCategory(category models.Category) error {
 	categoryDynamo, err := attributevalue.MarshalMap(category)
 	if err != nil {
-		log.Errorf("Failed to marshall new transaction item: %s", err)
+		log.Errorf("Failed to marshall new category item: %s", err)
 		return err
 	}
 
@@ -98,4 +100,68 @@ func (r categoryRepository) GetAllCategories() ([]models.Category, error) {
 	}
 
 	return categories, nil
+}
+
+func (r categoryRepository) UpdateCategoryListOrder(categories []models.Category) error {
+	err := r.RemoveAll()
+	if err != nil {
+		return err
+	}
+
+	var writeRequests []types.WriteRequest
+	for _, category := range categories {
+		categoryDynamo, err := attributevalue.MarshalMap(category)
+		if err != nil {
+			log.Errorf("Failed to marshall new category item: %s", err)
+			return err
+		}
+
+		writeRequests = append(writeRequests, types.WriteRequest{
+			PutRequest: &types.PutRequest{
+				Item: categoryDynamo,
+			},
+		})
+	}
+
+	_, err = r.db.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{
+			r.tableName: writeRequests,
+		},
+	})
+	if err != nil {
+		log.Error("Failed to update category order, error: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (r categoryRepository) RemoveAll() error {
+	categories, err := r.GetAllCategories()
+	if err != nil {
+		log.Error("Failed to get all categories, error: %s", err.Error())
+		return err
+	}
+
+	var writeRequests []types.WriteRequest
+	for _, category := range categories {
+		writeRequests = append(writeRequests, types.WriteRequest{
+			DeleteRequest: &types.DeleteRequest{
+				Key: map[string]types.AttributeValue{
+					"Name":     &types.AttributeValueMemberS{Value: category.Name},
+					"Priority": &types.AttributeValueMemberN{Value: strconv.FormatInt(int64(category.Priority), 10)},
+				},
+			},
+		})
+	}
+
+	_, err = r.db.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{
+			r.tableName: writeRequests,
+		},
+	})
+	if err != nil {
+		log.Error("Failed to remove all categories, error: %s", err.Error())
+		return err
+	}
+	return nil
 }

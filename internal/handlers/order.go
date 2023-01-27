@@ -1,25 +1,25 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/IgorRamos/fm-category/internal/models"
 	"github.com/aws/aws-lambda-go/events"
-	log "github.com/sirupsen/logrus"
 )
 
-func (h CategoryHandler) GetCategories(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	categories, err := h.categoryRepository.GetAllCategories()
+func (h CategoryHandler) UpdateCategoryListOrder(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	var categories []models.Category
+	err := json.Unmarshal([]byte(req.Body), &categories)
 	if err != nil {
-		log.Errorf("error to get categories, error: [%s]", err.Error())
 		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
+			StatusCode: http.StatusBadRequest,
 			Body:       err.Error(),
 		}, nil
 	}
 
-	responseBody, err := toJSON(categories)
+	err = h.categoryRepository.UpdateCategoryListOrder(categories)
 	if err != nil {
-		log.Errorf("error to parse JSON, error: [%s]", err.Error())
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusInternalServerError,
 			Body:       err.Error(),
@@ -28,9 +28,7 @@ func (h CategoryHandler) GetCategories(req events.APIGatewayProxyRequest) (event
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: http.StatusOK,
-		Body:       responseBody,
 		Headers: map[string]string{
-			"Content-type":                     "application/json",
 			"Access-Control-Allow-Origin":      "*",
 			"Access-Control-Allow-Credentials": "true",
 		},
